@@ -1,40 +1,31 @@
+#==========================================================================================================================================================================================
+
+                                                                ###### IMPORTS ######
 import pygame as pg
 import os
 import random
+from threading import Timer
 
 import cv2
 import numpy as np
 
+#==========================================================================================================================================================================================
 
-class wndControl():
-    def __init__(self):
-        self.startScreen = True
-        self.detectScreen = False
-        self.instScreen = False
-        self.gameScreen = False
-        self.gameOver = False
-
-        self.keyboard = False
-        self.camera = False
-
-        self.score = 0
-
-control = wndControl()
+                                                             ###### OBJECT TRACKING ######
 
 class colorDetect():
     def __init__(self):
         self.x = 0
         self.y = 0
-        
+
+        #lower and upper bounds are set automatically to detect green
         self.lowerBound = np.array([33,80,40])
         self.upperBound = np.array([102,255,255])
 
-##        self.lower_red = np.array([0,50,50]) #example value
-##        self.upper_red = np.array([10,255,255]) #example value
-        
         self.cam = cv2.VideoCapture(0)
         self.cam.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         self.cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        
     def detectfun(self):
                 
         #Current frame is read
@@ -92,83 +83,15 @@ class colorDetect():
 
             self.x = cX
             self.y = cY
-##                if cX <= 250:
-##                    print "right"
-##
-##                elif cX >= 391: 
-##                    print "left"
-
-                
-        #Feature that allows user to select any object they want.
-        #This will not analyze the color of the selected part as that causes a crash if it is kept in the code.
-
-
-        #Pressing space will allow you to take a snapshot, then selecting a roi and pressing enter will display the roi.
-        if cv2.waitKey(1) == 32:
-            
-            showCrosshair = False
-            x0, y0, x1, y1 = cv2.selectROI("snapshot", img, showCrosshair)#selects roi(region of interest) and gives us the x and y coordinates of rectangle
-            
-            croppedImg = img[y0:y0+y1 , x0:x0+x1] #roi is selected from snapshot
-
-    ##        #height and width are calculated
-    ##        height = y1 
-    ##        width = x1 
-
-    ##        print "x0", x0
-    ##        print "x1", x1
-    ##        print "y0", y0
-    ##        print "y1", y1
-
-            b = 0
-            g = 0
-            r = 0
-
-            count = 0
-            
-            for x in range(x1):
-                for y in range(y1):
-                    count += 1
-                    colors = croppedImg[y, x]
-                    b += colors[0]
-                    g += colors[1]
-                    r += colors[2]
-
-    ##        color = np.uint8([[[b/count, g/count, r/count]]])
-    ##        print color
-    ##        pixel = cv2.cvtColor(color, cv2.COLOR_BGR2HSV)
-    ##        print pixel
-    ##        upper =  np.array([pixel[0] + 10, pixel[1] + 10, pixel[2] + 40])
-    ##        lower =  np.array([pixel[0] - 10, pixel[1] - 10, pixel[2] - 40])
-    ##
-    ##        print pixel
-    ##        print lower
-    ##        print upper
-    ##        
-            cv2.imshow("croppedImg", croppedImg)
 
 
         #Different frames are displayed
-        cv2.imshow('camera', img) #displays original frame with contours
-
+        cv2.imshow('camera', img) 
         
-        cv2.imshow('HSV', imgHSV) #displays hsv frame
-##        cv2.imshow('mask&image Overlay', overlay) #displays mask 
+#==========================================================================================================================================================================================
 
-
-
-##        #If q is pressed, loop is ended and camera is turned off
-##        if cv2.waitKey(1) == ord('q'):
-##            break
-##
-##
-##
-##
-##
-
-
-
-
+                                                            ###### PYGAME CLASSES ######
+#Initalizing game window and setting up dimensions
 pg.init()
 
 W, H = 1280, 720
@@ -177,7 +100,43 @@ win = pg.display.set_mode((W,H))
 outsidev = 10
 
 
+class wndControl():
+    def __init__(self):
+        self.startScreen = True
+        self.detectScreen = False
+        self.instScreen = False
+        self.gameScreen = False
+        self.timercalled = False
+        self.shouldItime = True
+        self.isPaused = False
+        
+        self.keyboard = False
+        self.camera = False
+
+        self.score = 0
+
+        self.lives = 1
+        
+control = wndControl()
+
+
+class fire():
+    fire = pg.image.load(os.path.join('images','fire.png'))
+
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 89
+        self.height = 119
+
+    def draw(self, win):
+        win.blit(self.fire, (self.x , self.y))
+        pg.display.update()
+
+
+#Coins 
 class coins():
+    #Pictures of coins are loaded
     coins = [pg.image.load(os.path.join('images','coin1.png')), pg.image.load(os.path.join('images','coin2.png')),
             pg.image.load(os.path.join('images','coin3.png')), pg.image.load(os.path.join('images','coin4.png')),
             pg.image.load(os.path.join('images','coin5.png'))]
@@ -186,23 +145,35 @@ class coins():
         self.x = x
         self.y = y
         self.width = 50
+        self.height = 50
         
         self.count = 0
         
     def draw(self, win):
         if self.count >= 10:
             self.count = 0
-
+            
+        #coin is animated
         win.blit(self.coins[self.count//2], (self.x, self.y))
         self.count += 1
         
         pg.display.update()
-        
+
+
+
+#Game Screen       
 class Player():
+    #Images are loaded
     backgrounds = [pg.image.load(os.path.join('images','game_bg_1.png')), pg.image.load(os.path.join('images','game_bg_2.png')),
           pg.image.load(os.path.join('images','game_bg_3.png')), pg.image.load(os.path.join('images','game_bg_4.png'))]
 
     bg = random.choice(backgrounds)
+
+    back = pg.image.load(os.path.join('images','backbutton.png'))
+    pause = pg.image.load(os.path.join('images','pausebutton.png'))
+    resume = pg.image.load(os.path.join('images','resumebutton.png'))
+    
+    heart = pg.image.load(os.path.join('images','heart.png'))
     
     char = pg.image.load(os.path.join('images','Bstanding.png'))
 
@@ -213,6 +184,8 @@ class Player():
                  pg.image.load(os.path.join('images','BL3.png'))]
 
     font = pg.font.SysFont("comicsansms", 64)
+    font2 = pg.font.SysFont("comicsansms", 160)
+    font3 = pg.font.SysFont("comicsansms", 120)
     
     def __init__(self, x, y, width, height):
         self.x = x
@@ -230,15 +203,23 @@ class Player():
         self.bgx1 = 0
         self.bgx2 = self.bg.get_width()
 
-
+    #function draws game screen
     def draw(self, win):
+        heartsx = 90
+        
         win.blit(self.bg, (self.bgx1, 0))
         win.blit(self.bg, (self.bgx2, 0))
 
+        win.blit(self.back, (1150, 20))
+        win.blit(self.pause, (550, 20))
+        
         text = self.font.render("Score: " + str(control.score), True, (255,165,0))
         
         win.blit(text, (0,0))
 
+        for i in range(control.lives):
+            win.blit(self.heart, (heartsx*i, 80))
+            
         if self.runCount+1 > 9:
             self.runCount = 0
             
@@ -256,9 +237,27 @@ class Player():
 
         pg.display.update()
 
+    #function that draws game over screen
+    def draw2(self, win):
+        text = self.font2.render("Game Over", True, (255,165,0))
+        
+        win.blit(text, (200,200))
 
+        pg.display.update()
 
+    #function that draws pause screen
+    def draw3(self, win):
+        text = self.font3.render("Game Paused", True, (255,165,0))
+
+        win.blit(text, (200, 200))
+        win.blit(self.resume, (500, 400))
+        
+        pg.display.update()
+        
+
+#Start screen
 class startScreen():
+    #Images are loaded
     bg = pg.image.load(os.path.join('images','skybg.png'))
     
     start = pg.image.load(os.path.join('images','start.png'))
@@ -320,30 +319,82 @@ class startScreen():
         pg.display.update()
 
 
+track = colorDetect()
+
+#Instructions class
 class cameraIns():
     bg = pg.image.load(os.path.join('images','instructions_screen.png'))
     
     def draw(self, win, keys):
         win.blit(self.bg, (0,0))
-
+        
+        #If a certain color is selected, lower and upper range for tracking is determined
         if keys[pg.K_g]:
             control.instScreen = not control.instScreen
             control.startScreen = not control.startScreen
-            
 
+        elif keys[pg.K_b]:
+            control.instScreen = not control.instScreen
+            control.startScreen = not control.startScreen
+            
+            track.lowerBound = np.array([110, 50, 50])
+            track.upperBound = np.array([130,255,255])
+
+        elif keys[pg.K_y]:
+            control.instScreen = not control.instScreen
+            control.startScreen = not control.startScreen
+            
+            track.lowerBound = np.array([20, 100, 100])
+            track.upperBound = np.array([40,255,255])
+
+        elif keys[pg.K_r]:
+            control.instScreen = not control.instScreen
+            control.startScreen = not control.startScreen
+            
+            track.lowerBound = np.array([30, 150, 50])
+            track.upperBound = np.array([255,255,180])
+            
         pg.display.update()
+
+#==========================================================================================================================================================================================
+
 
 clock = pg.time.Clock()
 ply = Player(500,650,64,64)
-track = colorDetect()
 start = startScreen()
 inst = cameraIns()
 
 
-
-
+#Game controls using tracking
 def gamecntCamera(x, y):
-    
+    #If center of object touches back button then reset everything and go back to start screen 
+    if 1155 <= x <= 1240 and 15 <= y <= 110:
+        control.startScreen = True
+        control.detectScreen = False
+        control.instScreen = False
+        control.gameScreen = False
+        control.timercalled = False
+        control.shouldItime = True
+        
+        control.keyboard = False
+        control.camera = False
+
+        control.score = 0
+
+        control.lives = 1
+
+    #If center of object touches pause button then pause game
+    elif 550 <= mouse[0] <= 646 and 20 <= mouse[1] <= 110 and control.gameScreen and not control.isPaused:
+        control.gameScreen = not control.gameScreen
+        control.isPaused = not control.isPaused 
+        ply.draw3(win)
+
+    #If center of object touches resume button then resume game
+    elif 500 <= mouse[0] <= 700 and 400 <= mouse[1] <= 600 and not control.gameScreen and control.isPaused:
+        control.gameScreen = not control.gameScreen
+        control.isPaused = not control.isPaused
+
+    #Background keeps looping to give illusion character is always moving forward    
     if ply.bgx1 == ply.bg.get_width() * -1:
         ply.bgx1 = ply.bg.get_width()
 
@@ -356,8 +407,8 @@ def gamecntCamera(x, y):
         ply.left = False
         ply.right = True
         if ply.x >= W/2:
-            ply.bgx1 -= 10
-            ply.bgx2 -= 10
+            ply.bgx1 -= 20
+            ply.bgx2 -= 20
 
         else:
             ply.x += ply.velocity
@@ -369,13 +420,13 @@ def gamecntCamera(x, y):
         ply.left = True
         ply.right = False
         
-
+    #standing
     else:
         ply.left = False
         ply.right = False
         ply.runCount = 0
 
-        
+    #jump   
     if not ply.jumping:
         if y <= 300:
             ply.jumping = True
@@ -397,20 +448,53 @@ def gamecntCamera(x, y):
             ply.jumpCount = 10
 
 
-def gamecntKeyboard(keys):
-    
+#Game controls using keyboard
+def gamecntKeyboard(keys, mouse, clicked):
+
+    #If back button is pressed then go back to start screen and reset variables
+    if 1155 <= mouse[0] <= 1240 and 15 <= mouse[1] <= 110 and control.gameScreen:
+        if clicked[0] == 1:
+            control.startScreen = True
+            control.detectScreen = False
+            control.instScreen = False
+            control.gameScreen = False
+            control.timercalled = False
+            control.shouldItime = True
+            
+            control.keyboard = False
+            control.camera = False
+
+            control.score = 0
+
+            control.lives = 1
+
+    #If pause button is pressed, then pause game
+    elif 550 <= mouse[0] <= 646 and 20 <= mouse[1] <= 110 and control.gameScreen and not control.isPaused:
+        if clicked[0] == 1:
+            control.gameScreen = not control.gameScreen
+            control.isPaused = not control.isPaused 
+            ply.draw3(win)
+
+    #If resume button is pressed then resume game
+    elif 500 <= mouse[0] <= 700 and 400 <= mouse[1] <= 600 and not control.gameScreen and control.isPaused:
+        if clicked[0] == 1:
+            control.gameScreen = not control.gameScreen
+            control.isPaused = not control.isPaused 
+
+    #Background keeps looping around to give the illusion that character is moving forward
     if ply.bgx1 == ply.bg.get_width() * -1:
         ply.bgx1 = ply.bg.get_width()
 
     if ply.bgx2 == ply.bg.get_width() * -1:
         ply.bgx2 = ply.bg.get_width()
         
-    
+    #LEFT
     if keys[pg.K_LEFT] and ply.x >= (ply.velocity):
         ply.x -= ply.velocity
         ply.left = True
         ply.right = False
-        
+
+    #RIGHT
     elif keys[pg.K_RIGHT]:
         ply.left = False
         ply.right = True
@@ -421,12 +505,13 @@ def gamecntKeyboard(keys):
         else:
             ply.x += ply.velocity
 
+    #STAND
     else:
         ply.left = False
         ply.right = False
         ply.runCount = 0
 
-        
+    #JUMP   
     if not ply.jumping:
         if keys[pg.K_SPACE]:
             ply.jumping = True
@@ -448,26 +533,60 @@ def gamecntKeyboard(keys):
             ply.jumpCount = 10
 
 
-MYEVENT = pg.USEREVENT + 1
-time = [3000, 5000, 8000]
-pg.time.set_timer(MYEVENT, random.choice(time))
-objects = []
+
+
+    
+#==========================================================================================================================================================================================
+
+objects1 = []
+objects2 = []
+
 
 coinstartingx = 500
+firestartingx = 1500
 
+def timerfun():
+    global coinstartingx
+    global firestartingx
+    
+    coinstartingx = coinstartingx + random.randrange(100, 600)
+    objects1.append(coins(coinstartingx, 650))
+    objects1.append(coins(coinstartingx+50, 650))
+    objects1.append(coins(coinstartingx+100, 650))
+    objects1.append(coins(coinstartingx+150, 650))
+    objects1.append(coins(coinstartingx+200, 650))
+
+
+    firestartingx += random.randrange(400, 700)
+    objects2.append(fire(firestartingx, 620))
+
+    t = Timer(6.0, timerfun)
+    
+    if control.shouldItime and control.gameScreen:
+        t.start()
+
+    
 looprun = True
 while looprun:
     mouse = pg.mouse.get_pos()
     clicked = pg.mouse.get_pressed()
     keys = pg.key.get_pressed()
 
+    if control.timercalled == False and control.gameScreen:
+        control.timercalled = True
+        timerfun()
     
     if control.camera and control.detectScreen:
         track.detectfun()
         gamecntCamera(track.x, track.y)
 
     elif control.keyboard:
-        gamecntKeyboard(keys)
+        gamecntKeyboard(keys, mouse, clicked)
+
+    else:
+        gamecntKeyboard(keys, mouse, clicked)
+
+
         
     if control.startScreen:
         start.draw(win, mouse, clicked) 
@@ -475,33 +594,43 @@ while looprun:
     elif control.instScreen:
         inst.draw(win, keys)
 
+
     elif control.gameScreen:
         ply.draw(win)
         
-        for objectt in objects:
-            objectt.draw(win)
+        for objectt1 in objects1:
+            objectt1.draw(win)
             if ply.right:
-                objectt.x -= 2
+                objectt1.x -= 5 
 
-            if objectt.x <= ply.x+ply.width/2 <= objectt.x+objectt.width:
-                objects.pop(objects.index(objectt))
+            if objectt1.x <= ply.x+ply.width/2 <= objectt1.x+objectt1.width and objectt1.y <= ply.y+ply.height/2 <= objectt1.y+objectt1.height:
+                objects1.pop(objects1.index(objectt1))
                 control.score += 10
                 ply.draw(win)
 
+        for objectt2 in objects2:
+            objectt2.draw(win)
+            if ply.right:
+                objectt2.x -= 5 
 
+            if objectt2.x <= ply.x+ply.width/2 <= objectt2.x+objectt2.width and objectt2.y <= ply.y+ply.height/2 <= objectt2.y+objectt2.height:
+                objects2.pop(objects2.index(objectt2))
+                control.lives -= 1
+                ply.draw(win)
+
+                if control.lives == 0:
+                    control.gameScreen = not control.gameScreen
+                    ply.draw2(win)
+                    control.shouldItime = False
+                    break
+
+
+        
     for event in pg.event.get():
         if event.type == pg.QUIT:
             looprun = False
 
-        if event.type == MYEVENT:
-            coinstartingx = coinstartingx + random.randrange(100, 600)
-            objects.append(coins(coinstartingx, 650))
-            objects.append(coins(coinstartingx+50, 650))
-            objects.append(coins(coinstartingx+100, 650))
-            objects.append(coins(coinstartingx+150, 650))
-            objects.append(coins(coinstartingx+200, 650))
-
-            
+     
 pg.quit()
 
 track.cam.release() #camera feed is released back to the system
